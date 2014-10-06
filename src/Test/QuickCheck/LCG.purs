@@ -39,6 +39,7 @@ import Data.Foldable
 import Data.Traversable
 import qualified Data.Array as A
 import Control.Monad.Free
+import Control.Monad.Trampoline
 import Control.Arrow
 import Control.Monad
 import Control.Bind
@@ -91,10 +92,12 @@ lcgStep = GenT $ arr $ \s -> GenOut { state: perturbState s, value: (runGenState
 uniform :: forall f. (Monad f) => GenT f Number
 uniform = (\n -> n / (1 `shl` 30)) <$> lcgStep
 
+_foo :: forall f a. Mealy.Step f s a -> f (Maybe a)
+_foo Mealy.Halt        = Mealy.Emit Nothing Mealy.Halt
+_foo (Mealy.Emit a _)  = Mealy.Emit (Just $ (runGenOut a).value) Mealy.Halt
+
 evalGen' :: forall f a. (Monad f) => GenT f a -> GenState -> f (Maybe a) 
-evalGen' (GenT g) st = h <$> Mealy.stepMealy st g where 
-                       h Mealy.Halt        = Nothing
-                       h (Mealy.Emit a _)  = Just $ (runGenOut a).value
+evalGen' (GenT g) st = _foo <$> Mealy.stepMealy st g
 
 evalGen :: forall f a. (Monad f) => GenT f a -> GenState -> f a
 evalGen g s = fromJust <$> evalGen' g s

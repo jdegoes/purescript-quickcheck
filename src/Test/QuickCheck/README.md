@@ -78,6 +78,10 @@
 
     resize :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 
+    showSample :: forall r a. (Show a) => Gen a -> Eff (trace :: Trace | r) Unit
+
+    showSample' :: forall r a. (Show a) => Size -> Gen a -> Eff (trace :: Trace | r) Unit
+
     sized :: forall f a. (Monad f) => (Number -> GenT f a) -> GenT f a
 
     stateful :: forall f a. (Monad f) => (GenState -> GenT f a) -> GenT f a
