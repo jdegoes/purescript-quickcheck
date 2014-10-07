@@ -4,13 +4,16 @@
 
 ### Types
 
-    data Gen a
+    type Gen a = GenT Trampoline a
 
-    data GenOut a
+    data GenOut a where
+      GenOut :: { value :: a, state :: GenState } -> GenOut a
 
-    data GenState
+    data GenState where
+      GenState :: { size :: Number, seed :: Number } -> GenState
 
-    data GenT f a
+    data GenT f a where
+      GenT :: Mealy.MealyT f GenState (GenOut a) -> GenT f a
 
     type LCG  = Number
 
@@ -19,35 +22,21 @@
 
 ### Type Class Instances
 
-    instance applicativeGen :: Applicative Gen
-
     instance applicativeGenT :: (Monad f) => Applicative (GenT f)
-
-    instance applyGen :: Apply f
 
     instance applyGenT :: (Monad f) => Apply (GenT f)
 
-    instance bindGen :: Bind Gen
-
     instance bindGenT :: (Monad f) => Bind (GenT f)
-
-    instance functorGen :: Functor Gen
 
     instance functorGenOut :: Functor GenOut
 
     instance functorGenT :: (Monad f) => Functor (GenT f)
 
-    instance monadGen :: Monad Gen
-
     instance monadGenT :: (Monad f) => Monad (GenT f)
-
-    instance monoidGen :: Monoid (Gen a)
 
     instance monoidGenState :: Monoid GenState
 
     instance monoidGenT :: (Monad f) => Monoid (GenT f a)
-
-    instance semigroupGen :: Semigroup (Gen a)
 
     instance semigroupGenState :: Semigroup GenState
 
@@ -56,35 +45,47 @@
 
 ### Values
 
+    arrayOf :: forall f a. (Monad f) => GenT f a -> GenT f [a]
+
+    arrayOf1 :: forall f a. (Monad f) => GenT f a -> GenT f (Tuple a [a])
+
     choose :: forall f. (Monad f) => Number -> Number -> GenT f Number
 
     chooseInt :: forall f. (Monad f) => Number -> Number -> GenT f Number
 
+    dropGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+
     elements :: forall f a. (Monad f) => a -> [a] -> GenT f a
 
-    evalGen :: forall f a. (Monad f) => GenT f a -> GenState -> f a
+    foldGen :: forall f a b. (Monad f) => (b -> a -> Maybe b) -> b -> GenState -> GenT f a -> f b
 
     frequency :: forall f a. (Monad f) => Tuple Number (GenT f a) -> [Tuple Number (GenT f a)] -> GenT f a
 
-    listOf :: forall f a. (Monad f) => GenT f a -> GenT f [a]
-
-    listOf1 :: forall f a. (Monad f) => GenT f a -> GenT f (Tuple a [a])
+    loopGen :: forall f a. (Monad f) => GenT f a -> GenT f a
 
     oneOf :: forall f a. (Monad f) => GenT f a -> [GenT f a] -> GenT f a
 
     perturbGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 
-    repeatable :: forall f a b. (Monad f) => (a -> GenT f b) -> GenT f (a -> f b)
+    repeatable :: forall a b. (a -> Gen b) -> Gen (a -> b)
 
     resize :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 
+    sample :: forall f a. (Monad f) => Number -> GenT f a -> f [a]
+
+    sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
+
     showSample :: forall r a. (Show a) => Gen a -> Eff (trace :: Trace | r) Unit
 
-    showSample' :: forall r a. (Show a) => Size -> Gen a -> Eff (trace :: Trace | r) Unit
+    showSample' :: forall r a. (Show a) => Number -> Gen a -> Eff (trace :: Trace | r) Unit
 
     sized :: forall f a. (Monad f) => (Number -> GenT f a) -> GenT f a
 
     stateful :: forall f a. (Monad f) => (GenState -> GenT f a) -> GenT f a
+
+    takeGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+
+    unfoldGen :: forall f a b c. (Monad f) => (b -> a -> Tuple b (Maybe c)) -> b -> GenT f a -> GenT f c
 
     uniform :: forall f. (Monad f) => GenT f Number
 

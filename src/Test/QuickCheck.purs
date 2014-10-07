@@ -3,12 +3,14 @@ module Test.QuickCheck where
 import Debug.Trace
 import Control.Bind
 import Control.Monad.Eff
+import Control.Monad.Trampoline
 import Control.Monad.Eff.Random
 import Control.Monad.Eff.Exception
 import Data.Array
 import Data.Tuple
 import Data.Maybe
 import Data.Either
+import Data.Traversable
 import Math
 
 import qualified Data.String as S
@@ -128,14 +130,8 @@ instance testableFunction :: (Arbitrary t, Testable prop) => Testable (t -> prop
     test (f t)
 
 quickCheckPure :: forall prop. (Testable prop) => Number -> Number -> prop -> [Result]
-quickCheckPure s = quickCheckPure' {newSeed: s, size: 10} where
-  quickCheckPure' st n prop = evalGen (go n) st 
-    where
-    go n | n <= 0 = return []
-    go n = do
-      result <- test prop
-      rest <- go (n - 1)
-      return $ result : rest
+quickCheckPure s n prop = runTrampoline $ sample' n st (test prop)
+                          where st = (GenState {seed: s, size: 10})
 
 type QC a = forall eff. Eff (trace :: Trace, random :: Random, err :: Exception | eff) a
 

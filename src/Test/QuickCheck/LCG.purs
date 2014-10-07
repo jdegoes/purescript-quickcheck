@@ -1,28 +1,34 @@
 module Test.QuickCheck.LCG
-  ( GenT()
-  , Gen()
-  , GenState()
-  , GenOut()
+  ( GenT(..)
+  , Gen(..)
+  , GenState(..)
+  , GenOut(..)
   , Size()
   , LCG()
-  , repeatable
-  , stateful
-  , variant
-  , sized
-  , resize
-  , choose
-  , chooseInt
-  , oneOf
-  , frequency
-  , listOf
-  , listOf1
-  , vectorOf
-  , elements
-  , evalGen
-  , perturbGen
-  , uniform
+  , arrayOf 
+  , arrayOf1 
+  , choose 
+  , chooseInt 
+  , dropGen 
+  , elements 
+  , foldGen 
+  , frequency 
+  , loopGen 
+  , oneOf 
+  , perturbGen 
+  , repeatable 
+  , resize 
+  , sample 
+  , sample' 
   , showSample
-  , showSample'
+  , showSample' 
+  , sized 
+  , stateful 
+  , takeGen 
+  , unfoldGen 
+  , uniform 
+  , variant 
+  , vectorOf 
   ) where
 
 import Control.Monad.Eff
@@ -51,23 +57,23 @@ type LCG  = Number
 
 data GenState = GenState { seed :: Number, size :: Number }
 
-runGenState :: GenState -> { seed :: Number, size :: Number }
-runGenState (GenState s) = s
+unGenState :: GenState -> { seed :: Number, size :: Number }
+unGenState (GenState s) = s
 
 stateM :: ({ seed :: Number, size :: Number } -> { seed :: Number, size :: Number }) -> GenState -> GenState
-stateM f = GenState <<< f <<< runGenState
+stateM f = GenState <<< f <<< unGenState
 
 data GenOut a = GenOut { state :: GenState, value :: a }
 
-runGenOut :: forall a. GenOut a -> { state :: GenState, value :: a }
-runGenOut (GenOut v) = v
+unGenOut :: forall a. GenOut a -> { state :: GenState, value :: a }
+unGenOut (GenOut v) = v
 
 data GenT f a = GenT (Mealy.MealyT f GenState (GenOut a))
 
-data Gen a = Gen (GenT (Free Lazy) a)
+type Gen a = GenT Trampoline a
 
-runGen :: forall f a. GenT f a -> Mealy.MealyT f GenState (GenOut a)
-runGen (GenT m) = m
+unGen :: forall f a. GenT f a -> Mealy.MealyT f GenState (GenOut a)
+unGen (GenT m) = m
 
 lcgM :: Number
 lcgM = 1103515245 
@@ -87,40 +93,45 @@ perturbState :: GenState -> GenState
 perturbState (GenState s) = GenState { seed: lcgNext s.seed, size: s.size }
 
 lcgStep :: forall f. (Monad f) => GenT f Number
-lcgStep = GenT $ arr $ \s -> GenOut { state: perturbState s, value: (runGenState s).seed } 
+lcgStep = GenT $ arr $ \s -> GenOut { state: perturbState s, value: (unGenState s).seed } 
 
 uniform :: forall f. (Monad f) => GenT f Number
 uniform = (\n -> n / (1 `shl` 30)) <$> lcgStep
 
-_foo :: forall f a. Mealy.Step f s a -> f (Maybe a)
-_foo Mealy.Halt        = Mealy.Emit Nothing Mealy.Halt
-_foo (Mealy.Emit a _)  = Mealy.Emit (Just $ (runGenOut a).value) Mealy.Halt
+stepGen :: forall f a. (Monad f) => GenState -> GenT f a -> f (Maybe (GenOut (Tuple a (GenT f a))))
+stepGen st (GenT m) =   h <$> Mealy.stepMealy st m
+                        where h Mealy.Halt        = Nothing
+                              h (Mealy.Emit a m)  = Just $ flip Tuple (GenT m) <$> a 
 
 evalGen' :: forall f a. (Monad f) => GenT f a -> GenState -> f (Maybe a) 
-evalGen' (GenT g) st = _foo <$> Mealy.stepMealy st g
-
-evalGen :: forall f a. (Monad f) => GenT f a -> GenState -> f a
-evalGen g s = fromJust <$> evalGen' g s
+evalGen' g st = h <$> stepGen st g
+                where h Nothing                               = Nothing
+                      h (Just (GenOut { value = Tuple a _ })) = Just a
 
 pureGen :: forall f a. (Monad f) => (GenState -> GenOut a) -> GenT f a
 pureGen f = GenT $ arr f
 
-repeatable :: forall f a b. (Monad f) => (a -> GenT f b) -> GenT f (a -> f b)
-repeatable f = GenT $ let next = Mealy.pureMealy $ \s -> Mealy.Emit (GenOut { state: s, value: \a -> evalGen (f a) s }) next
-                      in  next
+repeatable' :: forall f a b. (Monad f) => (a -> GenT f b) -> GenT f (a -> f b)
+repeatable' f = GenT $ 
+  let next = Mealy.pureMealy $ \s -> Mealy.Emit (GenOut { state: s, value: \a -> fromJust <$> evalGen' (f a) s }) next
+  in  next
+
+repeatable :: forall a b. (a -> Gen b) -> Gen (a -> b)
+repeatable f = g <$> repeatable' f
+               where g f' = \a -> runTrampoline $ f' a
 
 stateful :: forall f a. (Monad f) => (GenState -> GenT f a) -> GenT f a
 stateful f = GenT $ do s <- id 
-                       runGen (f s)
+                       unGen (f s)
 
 variant :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
-variant n g = GenT $ lmap (stateM (\s -> s { seed = n })) (runGen g)
+variant n g = GenT $ lmap (stateM (\s -> s { seed = n })) (unGen g)
 
 sized :: forall f a. (Monad f) => (Number -> GenT f a) -> GenT f a
-sized f = stateful $ \s -> f (runGenState s).size
+sized f = stateful $ \s -> f (unGenState s).size
 
 resize :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
-resize sz g = GenT $ lmap (stateM (\s -> s { size = sz })) (runGen g)
+resize sz g = GenT $ lmap (stateM (\s -> s { size = sz })) (unGen g)
 
 choose :: forall f. (Monad f) => Number -> Number -> GenT f Number
 choose a b = (*) (max - min) >>> (+) min <$> uniform 
@@ -144,20 +155,22 @@ frequency x xs =
   in do n <- chooseInt 1 total
         pick n (snd x) xxs
 
-listOf :: forall f a. (Monad f) => GenT f a -> GenT f [a]
-listOf g = sized $ \n -> 
+arrayOf :: forall f a. (Monad f) => GenT f a -> GenT f [a]
+arrayOf g = sized $ \n -> 
   do k <- chooseInt 0 n
      vectorOf k g
 
-listOf1 :: forall f a. (Monad f) => GenT f a -> GenT f (Tuple a [a])
-listOf1 g = sized $ \n ->
+arrayOf1 :: forall f a. (Monad f) => GenT f a -> GenT f (Tuple a [a])
+arrayOf1 g = sized $ \n ->
   do k  <- chooseInt 0 n
      x  <- g
      xs <- vectorOf (k - 1) g
      return $ Tuple x xs
 
 vectorOf :: forall f a. (Monad f) => Number -> GenT f a -> GenT f [a]
-vectorOf k g = sequence $ const g <$> (A.range 1 k)
+vectorOf n = unfoldGen f []
+  where f b a = let b' = b <> [a] 
+                in  if A.length b' >= n then Tuple [] (Just b') else Tuple b' Nothing
 
 elements :: forall f a. (Monad f) => a -> [a] -> GenT f a
 elements x xs = do
@@ -177,21 +190,43 @@ perturbGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 perturbGen n (GenT g) = GenT $ lmap (stateM (\s -> s { seed = lcgNext (float32ToInt32 n) + s.seed })) g
 
 liftMealy :: forall f a. (Monad f) => (Mealy.MealyT f GenState (GenOut a) -> Mealy.MealyT f GenState (GenOut a)) -> (GenT f a -> GenT f a)
-liftMealy f = \g -> GenT $ f (runGen g)
+liftMealy f = \g -> GenT $ f (unGen g)
 
-take :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
-take n = liftMealy $ Mealy.take n
+takeGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+takeGen n = liftMealy $ Mealy.take n
 
-drop :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
-drop n = liftMealy $ Mealy.drop n
+dropGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+dropGen n = liftMealy $ Mealy.drop n
 
-loop :: forall f a. (Monad f) => GenT f a -> GenT f a
-loop = liftMealy $ Mealy.loop
+loopGen :: forall f a. (Monad f) => GenT f a -> GenT f a
+loopGen = liftMealy $ Mealy.loop
+
+foldGen :: forall f a b. (Monad f) => (b -> a -> Maybe b) -> b -> GenState -> GenT f a -> f b
+foldGen f b s (GenT m) = loop s m b where
+  loop st m b = Mealy.stepMealy st m >>= g
+    where g Mealy.Halt                                        = pure b
+          g (Mealy.Emit (GenOut { value = a, state = st }) m) = let b' = f b a in maybe (pure b) (loop st m) b'
+
+unfoldGen :: forall f a b c. (Monad f) => (b -> a -> Tuple b (Maybe c)) -> b -> GenT f a -> GenT f c
+unfoldGen f b (GenT m) = GenT $ loop m b where
+  loop m b = Mealy.mealy $ \st -> Mealy.stepMealy st m >>= g
+    where g Mealy.Halt                                        = pure Mealy.Halt
+          g (Mealy.Emit (GenOut { value = a, state = st }) m) = case f b a of 
+                                                                  Tuple b Nothing  -> Mealy.stepMealy st (loop m b)
+                                                                  Tuple b (Just c) -> 
+                                                                    let c' = GenOut { value: c, state: st }
+                                                                    in  pure $ Mealy.Emit c' (loop m b)
+
+sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
+sample' n = foldGen f []
+  where f v a = ifte (A.length v < n) (Just $ v <> [a]) Nothing 
+
+        ifte p a b = if p then a else b -- FIXME: workaround type inference unification bug
 
 sample :: forall f a. (Monad f) => Number -> GenT f a -> f [a]
-sample sz g = evalGen (vectorOf sz g) (GenState { seed: 0, size: sz })
+sample n = sample' n (GenState { size: 10, seed: 0 })
 
-showSample' :: forall r a. (Show a) => Size -> Gen a -> Eff (trace :: Trace | r) Unit
+showSample' :: forall r a. (Show a) => Number -> Gen a -> Eff (trace :: Trace | r) Unit
 showSample' n g = print $ runTrampoline $ sample n g
 
 showSample :: forall r a. (Show a) => Gen a -> Eff (trace :: Trace | r) Unit
@@ -226,28 +261,7 @@ instance monoidGenT :: (Monad f) => Monoid (GenT f a) where
 
 instance bindGenT :: (Monad f) => Bind (GenT f) where
   (>>=) (GenT m) f = GenT $ do GenOut { state = s1, value = a } <- m
-                               GenOut { state = s2, value = b } <- runGen $ f a
+                               GenOut { state = s2, value = b } <- unGen $ f a
                                return $ GenOut { state: s1 <> s2, value: b }
 
 instance monadGenT :: (Monad f) => Monad (GenT f)
-
--- Gen instances
-instance functorGen :: Functor Gen where
-  (<$>) f (Gen m) = Gen $ f <$> m
-
-instance applyGen :: Apply f where
-  (<*>) (Gen f) (Gen x) = Gen $ f <*> x
-
-instance applicativeGen :: Applicative Gen where
-  pure t = Gen $ pure t
-
-instance semigroupGen :: Semigroup (Gen a) where
-  (<>) (Gen x) (Gen y) = Gen (x <> y)
-
-instance monoidGen :: Monoid (Gen a) where
-  mempty = Gen mempty
-
-instance bindGen :: Bind Gen where
-  (>>=) (Gen m) f = Gen $ m >>= f
-
-instance monadGen :: Monad Gen
