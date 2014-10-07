@@ -13,6 +13,7 @@ module Test.QuickCheck.LCG
   , elements 
   , foldGen 
   , frequency 
+  , fromArray
   , loopGen 
   , oneOf 
   , perturbGen 
@@ -229,6 +230,9 @@ suchThat g p = unfoldGen f unit g where
 suchThatMaybe :: forall f a. (Monad f) => Number -> GenT f a -> (a -> Boolean) -> GenT f (Maybe a)
 suchThatMaybe n g p = unfoldGen f 0 g where
   f i a = ifThenElse (p a) (Tuple 0 (Just $ Just a)) (ifThenElse (i >= n) (Tuple 0 (Just $ Nothing)) (Tuple (i + 1) Nothing))
+
+fromArray :: forall f a. (Monad f) => [a] -> GenT f a
+fromArray a = GenT $ Mealy.fromArray a
 
 sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
 sample' n = foldGen f []
