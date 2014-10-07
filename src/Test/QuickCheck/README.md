@@ -61,6 +61,8 @@
 
     frequency :: forall f a. (Monad f) => Tuple Number (GenT f a) -> [Tuple Number (GenT f a)] -> GenT f a
 
+    fromArray :: forall f a. (Monad f) => [a] -> GenT f a
+
     loopGen :: forall f a. (Monad f) => GenT f a -> GenT f a
 
     oneOf :: forall f a. (Monad f) => GenT f a -> [GenT f a] -> GenT f a

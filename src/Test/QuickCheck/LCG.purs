@@ -14,6 +14,7 @@ module Test.QuickCheck.LCG
   , foldGen 
   , frequency 
   , fromArray
+  , intsBetween
   , loopGen 
   , oneOf 
   , perturbGen 
@@ -231,8 +232,15 @@ suchThatMaybe :: forall f a. (Monad f) => Number -> GenT f a -> (a -> Boolean) -
 suchThatMaybe n g p = unfoldGen f 0 g where
   f i a = ifThenElse (p a) (Tuple 0 (Just $ Just a)) (ifThenElse (i >= n) (Tuple 0 (Just $ Nothing)) (Tuple (i + 1) Nothing))
 
+intsBetween :: forall f a. (Monad f) => Number -> Number -> GenT f Number
+intsBetween min max = GenT $ go min where 
+  go cur = Mealy.pureMealy $ \s -> 
+    ifThenElse (cur > max) Mealy.Halt (Mealy.Emit (GenOut { state: s, value: cur }) (go (cur + 1)))
+
 fromArray :: forall f a. (Monad f) => [a] -> GenT f a
-fromArray a = GenT $ Mealy.fromArray a
+fromArray a = GenT $ go 0 where
+  go i = Mealy.pureMealy $ \s -> 
+    maybe Mealy.Halt (\a -> Mealy.Emit (GenOut { state: s, value: a }) (go (i + 1))) (a A.!! i)
 
 sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
 sample' n = foldGen f []
