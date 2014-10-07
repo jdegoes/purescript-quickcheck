@@ -9,12 +9,12 @@ module Test.QuickCheck.LCG
   , arrayOf1 
   , choose 
   , chooseInt 
+  , detArray
+  , detRange
   , dropGen 
   , elements 
   , foldGen 
   , frequency 
-  , fromArray
-  , intsBetween
   , loopGen 
   , oneOf 
   , perturbGen 
@@ -107,8 +107,8 @@ stepGen st (GenT m) =   h <$> Mealy.stepMealy st m
                         where h Mealy.Halt        = Nothing
                               h (Mealy.Emit a m)  = Just $ flip Tuple (GenT m) <$> a 
 
-evalGen' :: forall f a. (Monad f) => GenT f a -> GenState -> f (Maybe a) 
-evalGen' g st = h <$> stepGen st g
+evalGen :: forall f a. (Monad f) => GenT f a -> GenState -> f (Maybe a) 
+evalGen g st = h <$> stepGen st g
                 where h Nothing                               = Nothing
                       h (Just (GenOut { value = Tuple a _ })) = Just a
 
@@ -117,7 +117,7 @@ pureGen f = GenT $ arr f
 
 repeatable' :: forall f a b. (Monad f) => (a -> GenT f b) -> GenT f (a -> f b)
 repeatable' f = GenT $ 
-  let next = Mealy.pureMealy $ \s -> Mealy.Emit (GenOut { state: s, value: \a -> fromJust <$> evalGen' (f a) s }) next
+  let next = Mealy.pureMealy $ \s -> Mealy.Emit (GenOut { state: s, value: \a -> fromJust <$> evalGen (f a) s }) next
   in  next
 
 repeatable :: forall a b. (a -> Gen b) -> Gen (a -> b)
@@ -232,13 +232,13 @@ suchThatMaybe :: forall f a. (Monad f) => Number -> GenT f a -> (a -> Boolean) -
 suchThatMaybe n g p = unfoldGen f 0 g where
   f i a = ifThenElse (p a) (Tuple 0 (Just $ Just a)) (ifThenElse (i >= n) (Tuple 0 (Just $ Nothing)) (Tuple (i + 1) Nothing))
 
-intsBetween :: forall f a. (Monad f) => Number -> Number -> GenT f Number
-intsBetween min max = GenT $ go min where 
+detRange :: forall f a. (Monad f) => Number -> Number -> GenT f Number
+detRange min max = GenT $ go min where 
   go cur = Mealy.pureMealy $ \s -> 
     ifThenElse (cur > max) Mealy.Halt (Mealy.Emit (GenOut { state: s, value: cur }) (go (cur + 1)))
 
-fromArray :: forall f a. (Monad f) => [a] -> GenT f a
-fromArray a = GenT $ go 0 where
+detArray :: forall f a. (Monad f) => [a] -> GenT f a
+detArray a = GenT $ go 0 where
   go i = Mealy.pureMealy $ \s -> 
     maybe Mealy.Halt (\a -> Mealy.Emit (GenOut { state: s, value: a }) (go (i + 1))) (a A.!! i)
 

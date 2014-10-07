@@ -53,6 +53,10 @@
 
     chooseInt :: forall f. (Monad f) => Number -> Number -> GenT f Number
 
+    detArray :: forall f a. (Monad f) => [a] -> GenT f a
+
+    detRange :: forall f a. (Monad f) => Number -> Number -> GenT f Number
+
     dropGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 
     elements :: forall f a. (Monad f) => a -> [a] -> GenT f a
@@ -60,8 +64,6 @@
     foldGen :: forall f a b. (Monad f) => (b -> a -> Maybe b) -> b -> GenState -> GenT f a -> f b
 
     frequency :: forall f a. (Monad f) => Tuple Number (GenT f a) -> [Tuple Number (GenT f a)] -> GenT f a
-
-    fromArray :: forall f a. (Monad f) => [a] -> GenT f a
 
     loopGen :: forall f a. (Monad f) => GenT f a -> GenT f a
 

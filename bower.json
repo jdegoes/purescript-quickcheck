@@ -17,7 +17,7 @@
     "purescript-random":        "*",
     "purescript-exceptions":    "*",
     "purescript-transformers":  "*",
-    "purescript-free":          "git@github.com:jdegoes/purescript-free.git#0.2.0",
+    "purescript-free":          "0.1.2",
     "purescript-machines":      "0.1.2",
     "purescript-arrays":        "*",
     "purescript-strings":       "*",
