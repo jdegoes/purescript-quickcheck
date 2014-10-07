@@ -24,6 +24,8 @@ module Test.QuickCheck.LCG
   , showSample' 
   , sized 
   , stateful 
+  , suchThat
+  , suchThatMaybe
   , takeGen 
   , unfoldGen 
   , uniform 
@@ -217,11 +219,20 @@ unfoldGen f b (GenT m) = GenT $ loop m b where
                                                                     let c' = GenOut { value: c, state: st }
                                                                     in  pure $ Mealy.Emit c' (loop m b)
 
+-- FIXME: workaround type inference unification bug
+ifThenElse p a b = if p then a else b
+
+suchThat :: forall f a. (Monad f) => GenT f a -> (a -> Boolean) -> GenT f a
+suchThat g p = unfoldGen f unit g where
+  f _ a = Tuple unit $ ifThenElse (p a) (Just a) Nothing
+
+suchThatMaybe :: forall f a. (Monad f) => Number -> GenT f a -> (a -> Boolean) -> GenT f (Maybe a)
+suchThatMaybe n g p = unfoldGen f 0 g where
+  f i a = ifThenElse (p a) (Tuple 0 (Just $ Just a)) (ifThenElse (i >= n) (Tuple 0 (Just $ Nothing)) (Tuple (i + 1) Nothing))
+
 sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
 sample' n = foldGen f []
-  where f v a = ifte (A.length v < n) (Just $ v <> [a]) Nothing 
-
-        ifte p a b = if p then a else b -- FIXME: workaround type inference unification bug
+  where f v a = ifThenElse (A.length v < n) (Just $ v <> [a]) Nothing 
 
 sample :: forall f a. (Monad f) => Number -> GenT f a -> f [a]
 sample n = sample' n (GenState { size: 10, seed: 0 })

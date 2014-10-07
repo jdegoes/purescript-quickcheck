@@ -83,6 +83,10 @@
 
     stateful :: forall f a. (Monad f) => (GenState -> GenT f a) -> GenT f a
 
+    suchThat :: forall f a. (Monad f) => GenT f a -> (a -> Boolean) -> GenT f a
+
+    suchThatMaybe :: forall f a. (Monad f) => Number -> GenT f a -> (a -> Boolean) -> GenT f (Maybe a)
+
     takeGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 
     unfoldGen :: forall f a b c. (Monad f) => (b -> a -> Tuple b (Maybe c)) -> b -> GenT f a -> GenT f c

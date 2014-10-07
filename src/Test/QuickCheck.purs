@@ -1,4 +1,18 @@
-module Test.QuickCheck where
+module Test.QuickCheck 
+  ( (<?>)
+  , AlphaNumString(..)
+  , Arbitrary
+  , CoArbitrary
+  , Negative(..)
+  , NonZero(..)
+  , Positive(..)
+  , QC(..)
+  , quickCheck
+  , quickCheck'
+  , quickCheckPure
+  , Result(..)
+  , Testable
+  ) where
 
 import Debug.Trace
 import Control.Bind
@@ -17,23 +31,64 @@ import qualified Data.String as S
 
 import Test.QuickCheck.LCG
 
-newtype AlphaNumString = AlphaNumString String
-
 class Arbitrary t where
   arbitrary :: Gen t
 
 class CoArbitrary t where
   coarbitrary :: forall r. t -> Gen r -> Gen r
 
+class Testable prop where
+  test :: prop -> Gen Result
+
+newtype AlphaNumString = AlphaNumString String
+
+newtype Positive = Positive Number
+
+newtype Negative = Negative Number
+
+newtype NonZero  = NonZero Number
+
+type QC a = forall eff. Eff (trace :: Trace, random :: Random, err :: Exception | eff) a
+
 data Result = Success | Failed String
 
-instance showResult :: Show Result where
-  show Success = "Success"
-  show (Failed msg) = "Failed: " ++ msg
-
 (<?>) :: Boolean -> String -> Result
-(<?>) true _ = Success
-(<?>) false msg = Failed msg
+(<?>) true  = const Success
+(<?>) false = Failed
+
+quickCheckPure :: forall prop. (Testable prop) => Number -> Number -> prop -> [Result]
+quickCheckPure s n prop = runTrampoline $ sample' n st (test prop)
+                          where st = (GenState {seed: s, size: 10})
+
+quickCheck' :: forall prop. (Testable prop) => Number -> prop -> QC Unit
+quickCheck' n prop = do
+  seed <- random
+  let results = quickCheckPure seed n prop
+  let successes = countSuccesses results
+  trace $ show successes ++ "/" ++ show n ++ " test(s) passed."
+  throwOnFirstFailure 1 results
+
+  where
+
+  throwOnFirstFailure :: Number -> [Result] -> QC Unit
+  throwOnFirstFailure _ [] = return unit
+  throwOnFirstFailure n (Failed msg : _) = throwException $ error $ "Test " ++ show n ++ " failed: \n" ++ msg
+  throwOnFirstFailure n (_ : rest) = throwOnFirstFailure (n + 1) rest
+
+  countSuccesses :: [Result] -> Number
+  countSuccesses [] = 0
+  countSuccesses (Success : rest) = 1 + countSuccesses rest
+  countSuccesses (_ : rest) = countSuccesses rest
+
+quickCheck :: forall prop. (Testable prop) => prop -> QC Unit
+quickCheck prop = quickCheck' 100 prop
+
+foreign import maxNumber "val maxNumber = Number.MAX_VALUE;" :: Number
+foreign import minNumber "val minNumber = Number.MIN_VALUE;" :: Number
+
+instance showResult :: Show Result where
+  show Success      = "Success"
+  show (Failed msg) = "Failed " ++ msg
 
 instance arbNumber :: Arbitrary Number where
   arbitrary = uniform 
@@ -41,13 +96,31 @@ instance arbNumber :: Arbitrary Number where
 instance coarbNumber :: CoArbitrary Number where
   coarbitrary = perturbGen  
 
+instance arbPositive :: Arbitrary Positive where
+  arbitrary = Positive <$> ((*) maxNumber) <$> uniform
+
+instance coarbPositive :: CoArbitrary Positive where
+  coarbitrary (Positive n) = coarbitrary n
+
+instance arbNegative :: Arbitrary Negative where
+  arbitrary = Negative <$> ((*) minNumber) <$> uniform
+
+instance coarbNegative :: CoArbitrary Negative where
+  coarbitrary (Negative n) = coarbitrary n
+
+instance arbNonZero :: Arbitrary NonZero where
+  arbitrary = NonZero <$> arbitrary `suchThat` ((/=) 0)
+
+instance coarbNonZero :: CoArbitrary NonZero where
+  coarbitrary (NonZero n) = coarbitrary n
+
 instance arbBoolean :: Arbitrary Boolean where
   arbitrary = do
     n <- uniform
     return $ (n * 2) < 1
 
 instance coarbBoolean :: CoArbitrary Boolean where
-  coarbitrary true = perturbGen 1
+  coarbitrary true  = perturbGen 1
   coarbitrary false = perturbGen 2
 
 instance arbString :: Arbitrary String where
@@ -114,9 +187,6 @@ instance coarbArray :: (CoArbitrary a) => CoArbitrary [a] where
   coarbitrary [] = id
   coarbitrary (x : xs) = coarbitrary xs <<< coarbitrary x
 
-class Testable prop where
-  test :: prop -> Gen Result
-
 instance testableResult :: Testable Result where
   test = return
 
@@ -128,32 +198,3 @@ instance testableFunction :: (Arbitrary t, Testable prop) => Testable (t -> prop
   test f = do
     t <- arbitrary
     test (f t)
-
-quickCheckPure :: forall prop. (Testable prop) => Number -> Number -> prop -> [Result]
-quickCheckPure s n prop = runTrampoline $ sample' n st (test prop)
-                          where st = (GenState {seed: s, size: 10})
-
-type QC a = forall eff. Eff (trace :: Trace, random :: Random, err :: Exception | eff) a
-
-quickCheck' :: forall prop. (Testable prop) => Number -> prop -> QC Unit
-quickCheck' n prop = do
-  seed <- random
-  let results = quickCheckPure seed n prop
-  let successes = countSuccesses results
-  trace $ show successes ++ "/" ++ show n ++ " test(s) passed."
-  throwOnFirstFailure 1 results
-
-  where
-
-  throwOnFirstFailure :: Number -> [Result] -> QC Unit
-  throwOnFirstFailure _ [] = return unit
-  throwOnFirstFailure n (Failed msg : _) = throwException $ error $ "Test " ++ show n ++ " failed: \n" ++ msg
-  throwOnFirstFailure n (_ : rest) = throwOnFirstFailure (n + 1) rest
-
-  countSuccesses :: [Result] -> Number
-  countSuccesses [] = 0
-  countSuccesses (Success : rest) = 1 + countSuccesses rest
-  countSuccesses (_ : rest) = countSuccesses rest
-
-quickCheck :: forall prop. (Testable prop) => prop -> QC Unit
-quickCheck prop = quickCheck' 100 prop
