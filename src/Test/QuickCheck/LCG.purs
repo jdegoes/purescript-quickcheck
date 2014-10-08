@@ -90,8 +90,6 @@ lcgC = 12345
 lcgN :: LCG
 lcgN = 1 `shl` 30
 
-foreign import almostOne "var AlmostOne = 1 - Number.EPSILON;" :: Number
-
 lcgNext :: LCG -> LCG
 lcgNext n = (lcgM * n + lcgC) % lcgN
 
@@ -152,7 +150,9 @@ choose a b = (*) (max - min) >>> (+) min <$> uniform
 -- | Creates a generator that generates integers between the specified 
 -- | inclusive range.
 chooseInt :: forall f. (Monad f) => Number -> Number -> GenT f Number
-chooseInt a b = M.floor <$> choose (M.ceil a) (M.floor b + almostOne)
+chooseInt a b = let min = M.ceil  (M.min a b)
+                    max = M.floor (M.max a b)
+                in  (M.round <<< (+) min <<< (*) (max - min + 0.5)) <$> uniform
 
 -- | Creates a generator that chooses another generator from the specified list
 -- | at random, and then generates a value with that generator.

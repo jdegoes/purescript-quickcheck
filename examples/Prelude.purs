@@ -16,16 +16,19 @@ mkMessage f = "Test failed for function ("
   ++ show (f 2) ++ ")"
 
 main = do
-  Debug.Trace.trace "testConst:"
+  trace "Sample [Number]"
+  showSample (chooseInt 0 10)
+
+  trace "testConst:"
   quickCheck testConst
 
-  Debug.Trace.trace "id is a left unit for <<<"
+  trace "id is a left unit for <<<"
   quickCheck $ \f a -> ((id <<< f) (a :: Number) == (f a) :: Number) <?> mkMessage f
 
-  Debug.Trace.trace "Precedence of && and ||:"
+  trace "Precedence of && and ||:"
   quickCheck $ \a b c -> ((a :: Boolean && b) || c) == ((a || c) && (b || c))
   
-  Debug.Trace.trace "Test Eq instance for Ref:"
+  trace "Test Eq instance for Ref:"
   quickCheck $ \a -> (Ref a :: Ref Number) == Ref a
   quickCheck $ \a -> not $ (Ref a :: Ref Number /= Ref a)
 
