@@ -67,7 +67,7 @@ quickCheckPure s n prop = runTrampoline $ sample' n (defState s) (test prop)
 quickCheck' :: forall prop. (Testable prop) => Number -> prop -> QC Unit
 quickCheck' n prop = do
   seed <- random
-  let results = quickCheckPure seed n prop
+  let results   = quickCheckPure seed n prop
   let successes = countSuccesses results
   trace $ show successes ++ "/" ++ show n ++ " test(s) passed."
   throwOnFirstFailure 1 results
@@ -81,7 +81,7 @@ smallCheckPure s prop = runTrampoline $ collectAll (defState s) (test prop)
 smallCheck :: forall prop. (Testable prop) => prop -> QC Unit
 smallCheck prop = do
   seed <- random
-  let results = smallCheckPure seed prop
+  let results   = smallCheckPure seed prop
   let successes = countSuccesses results
   trace $ show successes ++ "/" ++ show (length results) ++ " test(s) passed."
   throwOnFirstFailure 1 results
@@ -123,7 +123,10 @@ instance coarbNegative :: CoArbitrary Negative where
   coarbitrary (Negative n) = coarbitrary n
 
 instance arbNonZero :: Arbitrary NonZero where
-  arbitrary = NonZero <$> arbitrary `suchThat` ((/=) 0)
+  arbitrary = do n <- arbitrary
+                 b <- arbitrary
+                 let sign = if b then 1.0 else -1.0
+                 return $ NonZero (n * maxNumber * sign)
 
 instance coarbNonZero :: CoArbitrary NonZero where
   coarbitrary (NonZero n) = coarbitrary n

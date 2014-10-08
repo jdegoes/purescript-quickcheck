@@ -14,12 +14,13 @@ module Test.QuickCheck.LCG
   , detRange
   , dropGen 
   , elements 
+  , extend
   , foldGen 
   , frequency 
+  , infinite
   , oneOf 
   , perturbGen 
   , repeatable 
-  , repeat 
   , resize 
   , sample 
   , sample' 
@@ -172,7 +173,7 @@ arrayOf1 g = sized $ \n ->
      return $ Tuple x xs
 
 vectorOf :: forall f a. (Monad f) => Number -> GenT f a -> GenT f [a]
-vectorOf n g = unfoldGen f [] (repeat g)
+vectorOf n g = unfoldGen f [] (extend n g)
   where f b a = let b' = b <> [a] 
                 in  if A.length b' >= n then Tuple [] (Just b') else Tuple b' Nothing
 
@@ -205,8 +206,17 @@ takeGen n = liftMealy $ Mealy.take n
 dropGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 dropGen n = liftMealy $ Mealy.drop n
 
-repeat :: forall f a. (Monad f) => GenT f a -> GenT f a
-repeat = liftMealy $ Mealy.loop
+extend :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+extend n (GenT m) = GenT $ loop 0 m
+  where m0 = m
+        loop i m = Mealy.mealy \st -> 
+          let f Mealy.Halt       = if i >= n then pure Mealy.Halt else Mealy.stepMealy st (loop (i + 1) m0)
+              f (Mealy.Emit s m) = pure $ Mealy.Emit s (loop (i + 1) m)
+
+          in  Mealy.stepMealy st m >>= f
+
+infinite :: forall f a. (Monad f) => GenT f a -> GenT f a
+infinite = liftMealy $ Mealy.loop
 
 foldGen :: forall f a b. (Monad f) => (b -> a -> Maybe b) -> b -> GenState -> GenT f a -> f b
 foldGen f b s (GenT m) = loop s m b where
@@ -250,7 +260,7 @@ collectAll = foldGen f []
   where f v a = Just $ v <> [a]
 
 sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
-sample' n st g = foldGen f [] st (repeat g)
+sample' n st g = foldGen f [] st (extend n g)
   where f v a = ifThenElse (A.length v < n) (Just $ v <> [a]) Nothing 
 
 sample :: forall f a. (Monad f) => Number -> GenT f a -> f [a]

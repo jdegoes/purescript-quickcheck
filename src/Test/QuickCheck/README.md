@@ -63,15 +63,17 @@
 
     elements :: forall f a. (Monad f) => a -> [a] -> GenT f a
 
+    extend :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+
     foldGen :: forall f a b. (Monad f) => (b -> a -> Maybe b) -> b -> GenState -> GenT f a -> f b
 
     frequency :: forall f a. (Monad f) => Tuple Number (GenT f a) -> [Tuple Number (GenT f a)] -> GenT f a
 
+    infinite :: forall f a. (Monad f) => GenT f a -> GenT f a
+
     oneOf :: forall f a. (Monad f) => GenT f a -> [GenT f a] -> GenT f a
 
     perturbGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
-
-    repeat :: forall f a. (Monad f) => GenT f a -> GenT f a
 
     repeatable :: forall a b. (a -> Gen b) -> Gen (a -> b)
 
