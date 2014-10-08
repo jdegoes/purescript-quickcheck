@@ -152,7 +152,7 @@ choose a b = (*) (max - min) >>> (+) min <$> uniform
 chooseInt :: forall f. (Monad f) => Number -> Number -> GenT f Number
 chooseInt a b = let min = M.ceil  (M.min a b)
                     max = M.floor (M.max a b)
-                in  (M.round <<< (+) min <<< (*) (max - min + 0.5)) <$> uniform
+                in  (M.round <<< (+) (min - 0.5) <<< (*) (max - min + 1)) <$> uniform
 
 -- | Creates a generator that chooses another generator from the specified list
 -- | at random, and then generates a value with that generator.
