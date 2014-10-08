@@ -104,5 +104,9 @@
 
     quickCheckPure :: forall prop. (Testable prop) => Number -> Number -> prop -> [Result]
 
+    smallCheck :: forall prop. (Testable prop) => prop -> QC Unit
+
+    smallCheckPure :: forall prop. (Testable prop) => Number -> prop -> [Result]
+
 
 

@@ -53,6 +53,8 @@
 
     chooseInt :: forall f. (Monad f) => Number -> Number -> GenT f Number
 
+    collectAll :: forall f a. (Monad f) => GenState -> GenT f a -> f [a]
+
     detArray :: forall f a. (Monad f) => [a] -> GenT f a
 
     detRange :: forall f a. (Monad f) => Number -> Number -> GenT f Number
@@ -65,11 +67,11 @@
 
     frequency :: forall f a. (Monad f) => Tuple Number (GenT f a) -> [Tuple Number (GenT f a)] -> GenT f a
 
-    loopGen :: forall f a. (Monad f) => GenT f a -> GenT f a
-
     oneOf :: forall f a. (Monad f) => GenT f a -> [GenT f a] -> GenT f a
 
     perturbGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
+
+    repeat :: forall f a. (Monad f) => GenT f a -> GenT f a
 
     repeatable :: forall a b. (a -> Gen b) -> Gen (a -> b)
 

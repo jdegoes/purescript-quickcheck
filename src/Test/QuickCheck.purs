@@ -11,6 +11,8 @@ module Test.QuickCheck
   , quickCheck'
   , quickCheckPure
   , Result(..)
+  , smallCheck
+  , smallCheckPure
   , Testable
   ) where
 
@@ -56,9 +58,11 @@ data Result = Success | Failed String
 (<?>) true  = const Success
 (<?>) false = Failed
 
+defState :: Number -> GenState
+defState s = (GenState {seed: s, size: 10})
+
 quickCheckPure :: forall prop. (Testable prop) => Number -> Number -> prop -> [Result]
-quickCheckPure s n prop = runTrampoline $ sample' n st (test prop)
-                          where st = (GenState {seed: s, size: 10})
+quickCheckPure s n prop = runTrampoline $ sample' n (defState s) (test prop)
 
 quickCheck' :: forall prop. (Testable prop) => Number -> prop -> QC Unit
 quickCheck' n prop = do
@@ -68,20 +72,30 @@ quickCheck' n prop = do
   trace $ show successes ++ "/" ++ show n ++ " test(s) passed."
   throwOnFirstFailure 1 results
 
-  where
-
-  throwOnFirstFailure :: Number -> [Result] -> QC Unit
-  throwOnFirstFailure _ [] = return unit
-  throwOnFirstFailure n (Failed msg : _) = throwException $ error $ "Test " ++ show n ++ " failed: \n" ++ msg
-  throwOnFirstFailure n (_ : rest) = throwOnFirstFailure (n + 1) rest
-
-  countSuccesses :: [Result] -> Number
-  countSuccesses [] = 0
-  countSuccesses (Success : rest) = 1 + countSuccesses rest
-  countSuccesses (_ : rest) = countSuccesses rest
-
 quickCheck :: forall prop. (Testable prop) => prop -> QC Unit
 quickCheck prop = quickCheck' 100 prop
+
+smallCheckPure :: forall prop. (Testable prop) => Number -> prop -> [Result]
+smallCheckPure s prop = runTrampoline $ collectAll (defState s) (test prop)
+
+smallCheck :: forall prop. (Testable prop) => prop -> QC Unit
+smallCheck prop = do
+  seed <- random
+  let results = smallCheckPure seed prop
+  let successes = countSuccesses results
+  trace $ show successes ++ "/" ++ show (length results) ++ " test(s) passed."
+  throwOnFirstFailure 1 results
+
+throwOnFirstFailure :: Number -> [Result] -> QC Unit
+throwOnFirstFailure _ [] = return unit
+throwOnFirstFailure n (Failed msg : _) = throwException $ error $ "Test " ++ show n ++ " failed: \n" ++ msg
+throwOnFirstFailure n (_ : rest) = throwOnFirstFailure (n + 1) rest
+
+countSuccesses :: [Result] -> Number
+countSuccesses = countSuccesses' 0 
+  where countSuccesses' acc []               = acc
+        countSuccesses' acc (Success : rest) = countSuccesses' (acc + 1) rest
+        countSuccesses' acc (_       : rest) = countSuccesses' acc rest
 
 foreign import maxNumber "val maxNumber = Number.MAX_VALUE;" :: Number
 foreign import minNumber "val minNumber = Number.MIN_VALUE;" :: Number

@@ -9,16 +9,17 @@ module Test.QuickCheck.LCG
   , arrayOf1 
   , choose 
   , chooseInt 
+  , collectAll
   , detArray
   , detRange
   , dropGen 
   , elements 
   , foldGen 
   , frequency 
-  , loopGen 
   , oneOf 
   , perturbGen 
   , repeatable 
+  , repeat 
   , resize 
   , sample 
   , sample' 
@@ -29,7 +30,7 @@ module Test.QuickCheck.LCG
   , suchThat
   , suchThatMaybe
   , takeGen 
-  , unfoldGen 
+  , unfoldGen
   , uniform 
   , variant 
   , vectorOf 
@@ -117,15 +118,14 @@ pureGen f = GenT $ arr f
 
 repeatable' :: forall f a b. (Monad f) => (a -> GenT f b) -> GenT f (a -> f b)
 repeatable' f = GenT $ 
-  let next = Mealy.pureMealy $ \s -> Mealy.Emit (GenOut { state: s, value: \a -> fromJust <$> evalGen (f a) s }) next
-  in  next
+  Mealy.pureMealy $ \s -> Mealy.Emit (GenOut { state: s, value: \a -> fromJust <$> evalGen (f a) s }) Mealy.halt
 
 repeatable :: forall a b. (a -> Gen b) -> Gen (a -> b)
 repeatable f = g <$> repeatable' f
                where g f' = \a -> runTrampoline $ f' a
 
 stateful :: forall f a. (Monad f) => (GenState -> GenT f a) -> GenT f a
-stateful f = GenT $ do s <- id 
+stateful f = GenT $ do s <- Mealy.take 1 id
                        unGen (f s)
 
 variant :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
@@ -172,7 +172,7 @@ arrayOf1 g = sized $ \n ->
      return $ Tuple x xs
 
 vectorOf :: forall f a. (Monad f) => Number -> GenT f a -> GenT f [a]
-vectorOf n = unfoldGen f []
+vectorOf n g = unfoldGen f [] (repeat g)
   where f b a = let b' = b <> [a] 
                 in  if A.length b' >= n then Tuple [] (Just b') else Tuple b' Nothing
 
@@ -180,6 +180,9 @@ elements :: forall f a. (Monad f) => a -> [a] -> GenT f a
 elements x xs = do
   n <- chooseInt 0 (A.length xs)
   pure if n == 0 then x else fromMaybe x (xs A.!! (n - 1))
+
+one :: forall f a. (Monad f) => GenT f a -> GenT f a
+one = takeGen 1
 
 foreign import float32ToInt32 
   "function float32ToInt32(n) {\
@@ -202,8 +205,8 @@ takeGen n = liftMealy $ Mealy.take n
 dropGen :: forall f a. (Monad f) => Number -> GenT f a -> GenT f a
 dropGen n = liftMealy $ Mealy.drop n
 
-loopGen :: forall f a. (Monad f) => GenT f a -> GenT f a
-loopGen = liftMealy $ Mealy.loop
+repeat :: forall f a. (Monad f) => GenT f a -> GenT f a
+repeat = liftMealy $ Mealy.loop
 
 foldGen :: forall f a b. (Monad f) => (b -> a -> Maybe b) -> b -> GenState -> GenT f a -> f b
 foldGen f b s (GenT m) = loop s m b where
@@ -242,8 +245,12 @@ detArray a = GenT $ go 0 where
   go i = Mealy.pureMealy $ \s -> 
     maybe Mealy.Halt (\a -> Mealy.Emit (GenOut { state: s, value: a }) (go (i + 1))) (a A.!! i)
 
+collectAll :: forall f a. (Monad f) => GenState -> GenT f a -> f [a]
+collectAll = foldGen f []
+  where f v a = Just $ v <> [a]
+
 sample' :: forall f a. (Monad f) => Number -> GenState -> GenT f a -> f [a]
-sample' n = foldGen f []
+sample' n st g = foldGen f [] st (repeat g)
   where f v a = ifThenElse (A.length v < n) (Just $ v <> [a]) Nothing 
 
 sample :: forall f a. (Monad f) => Number -> GenT f a -> f [a]
