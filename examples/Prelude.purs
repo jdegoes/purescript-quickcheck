@@ -4,6 +4,7 @@ import Control.Monad.Eff
 import Data.Eq
 import Debug.Trace
 import Test.QuickCheck
+import Test.QuickCheck.LCG
 
 testConst :: Number -> Number -> Number -> Boolean
 testConst a b c = const a b == const a c

@@ -24,6 +24,8 @@
 
     instance applicativeGenT :: (Monad f) => Applicative (GenT f)
 
+    instance applyGenOut :: Apply GenOut
+
     instance applyGenT :: (Monad f) => Apply (GenT f)
 
     instance bindGenT :: (Monad f) => Bind (GenT f)
@@ -34,9 +36,13 @@
 
     instance monadGenT :: (Monad f) => Monad (GenT f)
 
+    instance monoidGenOut :: (Monoid a) => Monoid (GenOut a)
+
     instance monoidGenState :: Monoid GenState
 
     instance monoidGenT :: (Monad f) => Monoid (GenT f a)
+
+    instance semigroupGenOut :: (Semigroup a) => Semigroup (GenOut a)
 
     instance semigroupGenState :: Semigroup GenState
 
